@@ -1,0 +1,36 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    {% if latest %}
+        {% for result in latest.results %}
+        <div class="bg-slate-800 p-4 rounded-xl border {% if result.success %}border-green-500/30{% else %}border-red-500/30{% endif %} flex flex-col justify-between">
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">{{ result.type }}</span>
+                {% if result.success %}
+                    <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 font-bold">ONLINE</span>
+                {% else %}
+                    <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 font-bold">OFFLINE</span>
+                {% endif %}
+            </div>
+            <div class="text-sm font-medium truncate mb-1 text-slate-200" title="{{ result.target }}">
+                {{ result.target.replace('https://', '') }}
+            </div>
+            {% set critical = 200 %}
+            {% set warning = 100 %}
+            {% if result.target == 'https://www.cloudflare.com' %}
+                {% set critical = 400 %}
+                {% set warning = 250 %}
+            {% endif %}
+            <div class="text-2xl font-bold {% if result.success %}{% if result.latency > critical %}text-red-400{% elif result.latency > warning %}text-yellow-400{% else %}text-white{% endif %}{% else %}text-slate-500{% endif %}">
+                {% if result.success and result.latency is not none %}
+                    {{ "%.1f"|format(result.latency) }} <span class="text-sm font-normal text-slate-500 ml-1">ms</span>
+                {% else %}
+                    &mdash;
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-span-full text-center p-8 text-slate-500">
+            Initializing sensors...
+        </div>
+    {% endif %}
+</div>
