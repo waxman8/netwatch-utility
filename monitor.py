@@ -10,6 +10,7 @@ class ConnectivityMonitor:
     def __init__(self):
         self.history = deque(maxlen=settings.MAX_BUFFER_SIZE)
         self.is_running = False
+        self.consecutive_failures = {}  # target -> count
 
     async def ping(self, host):
         """Perform a single ICMP ping."""
@@ -60,9 +61,13 @@ class ConnectivityMonitor:
         
         results = await asyncio.gather(*tasks)
         
-        # Log failures and critical latency to DB
+        # Log failures and critical latency to DB after 3 consecutive occurrences
         for res in results:
-            thresholds = settings.CUSTOM_THRESHOLDS.get(res["target"], {
+            target = res["target"]
+            if target not in self.consecutive_failures:
+                self.consecutive_failures[target] = 0
+
+            thresholds = settings.CUSTOM_THRESHOLDS.get(target, {
                 "critical": settings.LATENCY_CRITICAL,
                 "warning": settings.LATENCY_WARNING
             })
@@ -73,13 +78,22 @@ class ConnectivityMonitor:
                 res["latency"] > thresholds["critical"]
             )
 
-            if not res["success"] or is_critical_latency:
+            is_bad = not res["success"] or is_critical_latency
+
+            if is_bad:
+                self.consecutive_failures[target] += 1
+            else:
+                self.consecutive_failures[target] = 0
+
+            if self.consecutive_failures[target] == 3:
                 error_msg = res.get("error")
                 if is_critical_latency:
-                    error_msg = f"Critical latency: {res['latency']:.1f}ms (threshold: {thresholds['critical']}ms)"
+                    error_msg = f"Critical latency (3x): {res['latency']:.1f}ms (threshold: {thresholds['critical']}ms)"
+                elif not res["success"] and not error_msg:
+                    error_msg = "Target offline (3x)"
                 
                 await log_outage(
-                    res["target"],
+                    target,
                     res["type"],
                     error_msg,
                     res.get("latency")

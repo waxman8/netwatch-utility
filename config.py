@@ -10,12 +10,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./connectivity.db"
     
     # Latency thresholds (ms)
-    LATENCY_WARNING: float = 100.0
-    LATENCY_CRITICAL: float = 200.0
+    LATENCY_WARNING: float = 250.0
+    LATENCY_CRITICAL: float = 500.0
     # Custom thresholds for specific targets
-    CUSTOM_THRESHOLDS: dict = {
-        "https://www.cloudflare.com": {"critical": 400.0, "warning": 250.0}
-    }
+    CUSTOM_THRESHOLDS: dict = {}
 
     class Config:
         env_file = ".env"
