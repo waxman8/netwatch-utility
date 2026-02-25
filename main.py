@@ -52,3 +52,11 @@ async def get_status_component(request: Request):
         "request": request, 
         "latest": latest
     })
+
+@app.get("/components/connection", response_class=HTMLResponse)
+async def get_connection_component(request: Request):
+    """HTMX component for WiFi connection details."""
+    return templates.TemplateResponse("partials/connection_details.html", {
+        "request": request,
+        "wifi_info": monitor.wifi_info
+    })

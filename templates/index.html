@@ -31,6 +31,13 @@
     </nav>
 
     <main class="container mx-auto p-6 space-y-6">
+        <!-- Connection Details (HTMX Polled) -->
+        <div id="connection-details"
+             hx-get="/components/connection"
+             hx-trigger="load, every {{ settings.WIFI_POLL_INTERVAL }}s"
+             hx-swap="innerHTML">
+        </div>
+
         <!-- Live Status Grid (HTMX Polled) -->
         <div id="status-grid" 
              hx-get="/components/status" 

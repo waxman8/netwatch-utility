@@ -1,6 +1,7 @@
 import asyncio
 import time
 import httpx
+import re
 from datetime import datetime
 from collections import deque
 from config import settings
@@ -11,6 +12,8 @@ class ConnectivityMonitor:
         self.history = deque(maxlen=settings.MAX_BUFFER_SIZE)
         self.is_running = False
         self.consecutive_failures = {}  # target -> count
+        self.wifi_info = {}
+        self.last_wifi_check = 0
 
     async def ping(self, host):
         """Perform a single ICMP ping."""
@@ -52,7 +55,66 @@ class ConnectivityMonitor:
             except Exception as e:
                 return {"target": url, "success": False, "error": str(e), "type": "HTTP"}
 
+    async def get_wifi_info(self):
+        """Fetch WiFi details on macOS."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "system_profiler", "SPAirPortDataType",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            output = stdout.decode()
+            
+            info = {
+                "ssid": "Unknown",
+                "phy_mode": "Unknown",
+                "channel": "Unknown",
+                "signal": "Unknown",
+                "type": "Unknown"
+            }
+            
+            if "Current Network Information:" in output:
+                section = output.split("Current Network Information:")[1].split("Other Local Wi-Fi Networks:")[0]
+                lines = section.split('\n')
+                
+                for line in lines:
+                    line = line.strip()
+                    if line and not any(x in line for x in ["PHY Mode", "Channel", "Signal", "Country", "Network Type", "Security", "Transmit", "MCS"]) and line.endswith(":"):
+                        info["ssid"] = line[:-1]
+                        break
+                
+                phy_match = re.search(r"PHY Mode: (.*)", section)
+                if phy_match:
+                    info["phy_mode"] = phy_match.group(1).strip()
+                
+                channel_match = re.search(r"Channel: (.*)", section)
+                if channel_match:
+                    channel_val = channel_match.group(1).strip()
+                    info["channel"] = channel_val
+                    if "5GHz" in channel_val:
+                        info["type"] = "5G"
+                    elif "2.4GHz" in channel_val:
+                        info["type"] = "2.4G"
+                    elif "6GHz" in channel_val:
+                        info["type"] = "6G"
+                
+                signal_match = re.search(r"Signal / Noise: (.*) /", section)
+                if signal_match:
+                    info["signal"] = signal_match.group(1).strip()
+            
+            self.wifi_info = info
+            self.last_wifi_check = time.time()
+            return info
+        except Exception as e:
+            self.wifi_info = {"error": str(e)}
+            return self.wifi_info
+
     async def run_checks(self):
+        # Update WiFi info periodically
+        if time.time() - self.last_wifi_check > settings.WIFI_POLL_INTERVAL:
+            asyncio.create_task(self.get_wifi_info())
+
         tasks = []
         for target in settings.PING_TARGETS:
             tasks.append(self.ping(target))

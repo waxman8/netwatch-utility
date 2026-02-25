@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     TIMEOUT: float = 0.5
     MAX_BUFFER_SIZE: int = 3600  # 1 hour at 1s interval
     DATABASE_URL: str = "sqlite+aiosqlite:///./connectivity.db"
+    WIFI_POLL_INTERVAL: float = 10.0  # Fetch WiFi info every 10s
     
     # Latency thresholds (ms)
     LATENCY_WARNING: float = 250.0
