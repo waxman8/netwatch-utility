@@ -25,6 +25,10 @@ async def startup_event():
 async def get_index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "settings": settings})
 
+@app.get("/simulation", response_class=HTMLResponse)
+async def get_simulation(request: Request):
+    return templates.TemplateResponse("simulation.html", {"request": request, "settings": settings})
+
 @app.get("/components/outages", response_class=HTMLResponse)
 async def get_outages_component(request: Request):
     outages = await get_recent_outages(10)
@@ -58,5 +62,6 @@ async def get_connection_component(request: Request):
     """HTMX component for WiFi connection details."""
     return templates.TemplateResponse("partials/connection_details.html", {
         "request": request,
-        "wifi_info": monitor.wifi_info
+        "wifi_info": monitor.wifi_info,
+        "public_ip": monitor.public_ip
     })

@@ -14,6 +14,8 @@ class ConnectivityMonitor:
         self.consecutive_failures = {}  # target -> count
         self.wifi_info = {}
         self.last_wifi_check = 0
+        self.public_ip = "Fetching..."
+        self.last_ip_check = 0
 
     async def ping(self, host):
         """Perform a single ICMP ping."""
@@ -110,10 +112,31 @@ class ConnectivityMonitor:
             self.wifi_info = {"error": str(e)}
             return self.wifi_info
 
+    async def get_public_ip(self):
+        """Fetch public IP address."""
+        print(f"Fetching public IP from {settings.IP_CHECK_URL}...")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            try:
+                response = await client.get(settings.IP_CHECK_URL)
+                if response.status_code == 200:
+                    self.public_ip = response.text.strip()
+                    print(f"Fetched public IP: {self.public_ip}")
+                else:
+                    self.public_ip = f"Error: {response.status_code}"
+                    print(f"Error fetching public IP: {response.status_code}")
+            except Exception as e:
+                self.public_ip = "Offline"
+                print(f"Exception fetching public IP: {e}")
+        self.last_ip_check = time.time()
+
     async def run_checks(self):
         # Update WiFi info periodically
         if time.time() - self.last_wifi_check > settings.WIFI_POLL_INTERVAL:
             asyncio.create_task(self.get_wifi_info())
+
+        # Update Public IP periodically
+        if time.time() - self.last_ip_check > settings.IP_POLL_INTERVAL:
+            asyncio.create_task(self.get_public_ip())
 
         tasks = []
         for target in settings.PING_TARGETS:

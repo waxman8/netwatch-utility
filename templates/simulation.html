@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claim Processing Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes flow {
+            from { offset-distance: 0%; }
+            to { offset-distance: 100%; }
+        }
+        .packet {
+            width: 12px;
+            height: 12px;
+            background-color: #fbbf24; /* Amber-400 */
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 0 10px #fbbf24, 0 0 20px #fbbf24;
+            visibility: hidden;
+        }
+        .packet-animate {
+            visibility: visible;
+            animation: flow 2s linear infinite;
+        }
+        .service-node {
+            transition: all 0.3s ease;
+        }
+        .service-node.active {
+            filter: drop-shadow(0 0 10px rgba(52, 211, 153, 0.8));
+            stroke-width: 3px;
+            stroke: #34d399;
+        }
+        .eks-container {
+            stroke-dasharray: 8 4;
+            animation: dash 20s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -100; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <nav class="bg-slate-800 border-b border-slate-700 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <a href="/" class="hover:text-blue-400">NetWatch Utility</a>
+                <span class="text-slate-500">/</span>
+                <span>Simulation View</span>
+            </h1>
+            <div class="flex gap-4">
+                <button id="toggleSim" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-semibold transition">
+                    Start Simulation
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-6 flex flex-col items-center">
+        <div class="w-full max-w-5xl bg-slate-800 rounded-2xl border border-slate-700 p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-4 right-4 text-xs text-slate-500 uppercase tracking-widest font-mono">
+                System Status: <span id="simStatusText" class="text-slate-400">Standby</span>
+            </div>
+
+            <!-- Simulation SVG -->
+            <svg viewBox="0 0 1000 800" class="w-full h-auto" id="simSvg">
+                <!-- Definitions for markers/gradients -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orientation="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#475569" />
+                    </marker>
+                    <linearGradient id="eksGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+
+                <!-- 1. Interpharm -->
+                <g id="node-interpharm">
+                    <ellipse cx="500" cy="50" rx="100" ry="30" fill="#1e293b" stroke="#94a3b8" stroke-width="2" class="service-node" />
+                    <text x="500" y="55" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Interpharm</text>
+                </g>
+
+                <!-- Path: Interpharm -> Akana -->
+                <path id="path-ip-akana" d="M 500 80 L 500 130" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+
+                <!-- 2. Akana Gateway -->
+                <g id="node-akana">
+                    <rect x="300" y="130" width="400" height="50" rx="25" fill="#1e293b" stroke="#94a3b8" stroke-width="2" class="service-node" />
+                    <text x="500" y="160" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Akana Gateway</text>
+                </g>
+
+                <!-- Path: Akana -> Cluster Gateway -->
+                <path id="path-akana-cluster" d="M 500 180 L 500 240" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+
+                <!-- EKS Boundary -->
+                <rect x="50" y="220" width="900" height="520" rx="30" fill="url(#eksGradient)" stroke="#10b981" stroke-width="2" class="eks-container" fill-opacity="0.3" />
+                <text x="65" y="245" fill="#10b981" font-weight="bold" font-size="20">EKS</text>
+
+                <!-- 3. Cluster Gateway -->
+                <g id="node-cluster-gw">
+                    <rect x="100" y="250" width="800" height="50" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="2" class="service-node" />
+                    <text x="500" y="282" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="18">Cluster Gateway</text>
+                </g>
+
+                <!-- Path: Cluster GW -> Queueing -->
+                <path id="path-cluster-queue" d="M 500 300 L 500 340" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+
+                <!-- 4. Queueing -->
+                <g id="node-queueing">
+                    <rect x="100" y="340" width="800" height="60" rx="10" fill="#451a03" stroke="#f59e0b" stroke-width="2" class="service-node" />
+                    <text x="500" y="375" text-anchor="middle" fill="#fef3c7" font-weight="bold" font-size="18">Queueing (A_Q, P_Q, B_Q, S_Q)</text>
+                </g>
+
+                <!-- Paths to Services -->
+                <path id="path-q-adj" d="M 180 400 L 180 470" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <path id="path-q-pricing" d="M 400 400 L 400 470" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <path id="path-q-benefits" d="M 620 400 L 620 470" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <path id="path-q-persist" d="M 840 400 L 840 470" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+
+                <!-- Returns from Services -->
+                <path id="path-adj-q" d="M 210 470 L 210 405" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <path id="path-pricing-q" d="M 430 470 L 430 405" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <path id="path-benefits-q" d="M 650 470 L 650 405" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+
+                <!-- 5. Adjudication -->
+                <g id="node-adj">
+                    <rect x="100" y="470" width="160" height="80" rx="20" fill="#064e3b" stroke="#10b981" stroke-width="2" class="service-node" />
+                    <text x="180" y="515" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="14">Adjudication</text>
+                    <rect x="110" y="560" width="140" height="40" rx="5" fill="#451a03" stroke="#f59e0b" stroke-width="1" />
+                    <text x="180" y="585" text-anchor="middle" fill="#fef3c7" font-weight="bold" font-size="12">Blaze Adj.</text>
+                </g>
+
+                <!-- 6. Pricing -->
+                <g id="node-pricing">
+                    <rect x="320" y="470" width="160" height="80" rx="20" fill="#064e3b" stroke="#10b981" stroke-width="2" class="service-node" />
+                    <text x="400" y="515" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="14">Pricing</text>
+                    <rect x="330" y="560" width="140" height="40" rx="5" fill="#451a03" stroke="#f59e0b" stroke-width="1" />
+                    <text x="400" y="585" text-anchor="middle" fill="#fef3c7" font-weight="bold" font-size="12">Blaze Pricing</text>
+                </g>
+
+                <!-- 7. Benefits -->
+                <g id="node-benefits">
+                    <rect x="540" y="470" width="160" height="80" rx="20" fill="#064e3b" stroke="#10b981" stroke-width="2" class="service-node" />
+                    <text x="620" y="515" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="14">Benefits</text>
+                    <rect x="550" y="560" width="140" height="40" rx="5" fill="#451a03" stroke="#f59e0b" stroke-width="1" />
+                    <text x="620" y="585" text-anchor="middle" fill="#fef3c7" font-weight="bold" font-size="12">Blaze Benefits</text>
+                </g>
+
+                <!-- 8. Persist -->
+                <g id="node-persist">
+                    <rect x="760" y="470" width="160" height="80" rx="20" fill="#064e3b" stroke="#10b981" stroke-width="2" class="service-node" />
+                    <text x="840" y="515" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="14">Persist</text>
+                </g>
+
+                <!-- 9. Cache -->
+                <g id="node-cache">
+                    <rect x="100" y="650" width="800" height="60" rx="30" fill="#064e3b" stroke="#10b981" stroke-width="2" stroke-dasharray="5 5" fill-opacity="0.1" />
+                    <text x="500" y="685" text-anchor="middle" fill="#d1fae5" font-weight="bold" font-size="18">CACHE (Codes, baskets, etc.)</text>
+                </g>
+
+                <!-- Cache paths (dashed) -->
+                <path d="M 180 550 L 180 650" stroke="#10b981" stroke-width="1" stroke-dasharray="5 5" fill="none" />
+                <path d="M 400 550 L 400 650" stroke="#10b981" stroke-width="1" stroke-dasharray="5 5" fill="none" />
+                <path d="M 620 550 L 620 650" stroke="#10b981" stroke-width="1" stroke-dasharray="5 5" fill="none" />
+
+                <!-- 10. Nexus -->
+                <g id="node-nexus">
+                    <rect x="760" y="600" width="160" height="100" rx="15" fill="#1e293b" stroke="#94a3b8" stroke-width="2" fill-opacity="0.5" />
+                    <text x="840" y="655" text-anchor="middle" fill="white" font-weight="bold" font-size="18">NEXUS</text>
+                </g>
+
+                <!-- Final Path -->
+                <path id="path-persist-nexus" d="M 840 550 C 840 570, 840 580, 840 600" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)" fill="none" />
+                <text x="850" y="575" fill="#94a3b8" font-size="10">Processed claim</text>
+
+                <!-- Packet elements (instantiated hidden) -->
+                <circle id="p1" class="packet" r="6" />
+            </svg>
+        </div>
+
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <h3 class="text-amber-400 font-bold mb-2 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-amber-400 rounded-full"></span>
+                    Simulation Status
+                </h3>
+                <p id="logText" class="text-sm text-slate-400 font-mono">Standby. Click 'Start Simulation' to begin.</p>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <h3 class="text-emerald-400 font-bold mb-2">Process Info</h3>
+                <p id="processInfo" class="text-sm text-slate-400">Claims are routed through Akana Gateway to EKS, where they are queued and processed by multiple Blaze-backed services before being persisted to Nexus.</p>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <h3 class="text-blue-400 font-bold mb-2">Controls</h3>
+                <div class="flex items-center gap-4">
+                    <label class="text-xs text-slate-400">Speed:</label>
+                    <input type="range" id="speedRange" min="500" max="3000" value="2000" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const btn = document.getElementById('toggleSim');
+        const packet = document.getElementById('p1');
+        const logText = document.getElementById('logText');
+        const simStatusText = document.getElementById('simStatusText');
+        const speedRange = document.getElementById('speedRange');
+        
+        let isRunning = false;
+        let sequenceStep = 0;
+        let timeoutId = null;
+
+        const nodes = {
+            ip: document.querySelector('#node-interpharm ellipse'),
+            akana: document.querySelector('#node-akana rect'),
+            cluster: document.querySelector('#node-cluster-gw rect'),
+            queue: document.querySelector('#node-queueing rect'),
+            adj: document.querySelector('#node-adj rect'),
+            pricing: document.querySelector('#node-pricing rect'),
+            benefits: document.querySelector('#node-benefits rect'),
+            persist: document.querySelector('#node-persist rect'),
+            nexus: document.querySelector('#node-nexus rect')
+        };
+
+        const paths = {
+            ipToAkana: 'path-ip-akana',
+            akanaToCluster: 'path-akana-cluster',
+            clusterToQueue: 'path-cluster-queue',
+            qToAdj: 'path-q-adj',
+            adjToQ: 'path-adj-q',
+            qToPricing: 'path-q-pricing',
+            pricingToQ: 'path-pricing-q',
+            qToBenefits: 'path-q-benefits',
+            benefitsToQ: 'path-benefits-q',
+            qToPersist: 'path-q-persist',
+            persistToNexus: 'path-persist-nexus'
+        };
+
+        function resetNodes() {
+            Object.values(nodes).forEach(n => n.classList.remove('active'));
+        }
+
+        function setNodeActive(key, active = true) {
+            if (active) nodes[key].classList.add('active');
+            else nodes[key].classList.remove('active');
+        }
+
+        async function movePacket(pathId, duration) {
+            return new Promise(resolve => {
+                packet.style.visibility = 'visible';
+                packet.style.offsetPath = `path('${document.getElementById(pathId).getAttribute('d')}')`;
+                packet.style.animation = `flow ${duration}ms linear forwards`;
+                
+                setTimeout(() => {
+                    packet.style.visibility = 'hidden';
+                    packet.style.animation = 'none';
+                    resolve();
+                }, duration);
+            });
+        }
+
+        async function runStep() {
+            if (!isRunning) return;
+
+            const duration = parseInt(speedRange.value);
+            const processDelay = duration / 2;
+
+            try {
+                // 1. Interpharm -> Akana
+                simStatusText.innerText = 'Receiving Claim';
+                logText.innerText = 'Interpharm: Sending new claim packet...';
+                setNodeActive('ip');
+                await movePacket(paths.ipToAkana, duration);
+                setNodeActive('ip', false);
+                
+                // 2. Akana -> Cluster
+                logText.innerText = 'Akana Gateway: Authorizing request...';
+                setNodeActive('akana');
+                await movePacket(paths.akanaToCluster, duration);
+                setNodeActive('akana', false);
+
+                // 3. Cluster -> Queue
+                logText.innerText = 'Cluster Gateway: Routing to queue...';
+                setNodeActive('cluster');
+                await movePacket(paths.clusterToQueue, duration);
+                setNodeActive('cluster', false);
+
+                // 4. Queue Processing
+                logText.innerText = 'Queueing: Distributing to services...';
+                setNodeActive('queue');
+                await new Promise(r => setTimeout(r, 500));
+
+                // 4a. Adjudication
+                logText.innerText = 'Adjudication: Processing with Blaze...';
+                await movePacket(paths.qToAdj, duration / 2);
+                setNodeActive('adj');
+                await new Promise(r => setTimeout(r, processDelay));
+                await movePacket(paths.adjToQ, duration / 2);
+                setNodeActive('adj', false);
+
+                // 4b. Pricing
+                logText.innerText = 'Pricing: Calculating costs...';
+                await movePacket(paths.qToPricing, duration / 2);
+                setNodeActive('pricing');
+                await new Promise(r => setTimeout(r, processDelay));
+                await movePacket(paths.pricingToQ, duration / 2);
+                setNodeActive('pricing', false);
+
+                // 4c. Benefits
+                logText.innerText = 'Benefits: Checking coverage...';
+                await movePacket(paths.qToBenefits, duration / 2);
+                setNodeActive('benefits');
+                await new Promise(r => setTimeout(r, processDelay));
+                await movePacket(paths.benefitsToQ, duration / 2);
+                setNodeActive('benefits', false);
+
+                // 5. Persist
+                logText.innerText = 'Queueing: Finalizing claim...';
+                await movePacket(paths.qToPersist, duration / 2);
+                setNodeActive('persist');
+                logText.innerText = 'Persist: Saving processed claim...';
+                await new Promise(r => setTimeout(r, processDelay));
+                
+                // 6. Nexus
+                await movePacket(paths.persistToNexus, duration);
+                setNodeActive('persist', false);
+                setNodeActive('nexus');
+                simStatusText.innerText = 'Claim Processed';
+                logText.innerText = 'Nexus: Claim stored successfully.';
+                await new Promise(r => setTimeout(r, 1000));
+                setNodeActive('nexus', false);
+
+                if (isRunning) {
+                    timeoutId = setTimeout(runStep, 1000);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        btn.addEventListener('click', () => {
+            isRunning = !isRunning;
+            if (isRunning) {
+                btn.innerText = 'Stop Simulation';
+                btn.classList.replace('bg-blue-600', 'bg-red-600');
+                btn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+                simStatusText.classList.replace('text-slate-400', 'text-emerald-400');
+                runStep();
+            } else {
+                btn.innerText = 'Start Simulation';
+                btn.classList.replace('bg-red-600', 'bg-blue-600');
+                btn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                simStatusText.innerText = 'Standby';
+                simStatusText.classList.replace('text-emerald-400', 'text-slate-400');
+                logText.innerText = 'Standby. Click \'Start Simulation\' to begin.';
+                clearTimeout(timeoutId);
+                resetNodes();
+                packet.style.visibility = 'hidden';
+            }
+        });
+    </script>
+</body>
+</html>

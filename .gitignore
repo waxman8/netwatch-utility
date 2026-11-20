@@ -5,9 +5,44 @@ __pycache__/
 
 # Database
 connectivity.db
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Virtual Environment
 venv/
 env/
+.venv/
 .env
-.venv
+.env.*
+
+# Logs
+*.log
+
+# Testing / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+._*
+
+# Claude Code local settings
+.claude/settings.local.json
